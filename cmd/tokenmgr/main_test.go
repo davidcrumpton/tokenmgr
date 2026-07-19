@@ -10,20 +10,6 @@ import (
 	"testing"
 )
 
-// func TestMain(t *testing.T) {
-// 	t := &testing.T{}
-// 	t.Run("exit code 1 when no command", func(t *testing.T) {
-// 		testRunExitCode(t, t.Name(), 1)
-// 	})
-
-// 	t.Run("exit code 1 when unknown command", func(t *testing.T) {
-// 		testRunExitCode(t, t.Name(), 1)
-// 	})
-
-// 	t.Run("exit code 0 when help", func(t *testing.T) {
-// 		testRunExitCode(t, t.Name(), 0)
-// 	})
-// }
 
 func testRunExitCode(t *testing.T, name string, wantExit int, args ...string) {
 	t.Helper()
