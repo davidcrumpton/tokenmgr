@@ -23,6 +23,8 @@ import (
 	"tokenmgr/internal/token"
 )
 
+const version = "v0.1.0"
+
 func main() {
 	if len(os.Args) < 2 {
 		usage()
@@ -57,7 +59,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `tokenmgr - self-describing signed bearer tokens
+	fmt.Fprint(os.Stderr, `tokenmgr `+version+` - Self-describing signed bearer tokens
 
 Usage:
   tokenmgr keygen  --out <path>                       generate a new Ed25519 keypair
