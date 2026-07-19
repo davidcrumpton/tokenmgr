@@ -1,220 +1,93 @@
 package schema
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestListSchemas(t *testing.T) {
-	tempDir := t.TempDir()
-	schemaDir := filepath.Join(tempDir, "schemas")
-	if err := os.Mkdir(schemaDir, 0755); err != nil {
-		t.Fatalf("cannot create schema dir: %v", err)
-	}
+func TestLoad(t *testing.T) {
+	t.Run("loads valid schema", func(t *testing.T) {
+		s, err := Load(filepath.Join("testdata", "valid.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, "test", s.Name)
+		assert.Len(t, s.Fields, 2)
+	})
 
-	// Create a dummy schema file
-	schemaContent := []byte(`
-	type: claims
-	fields:
-	email:
-		type: string
-		required: true
-	role:
-		type: string
-		required: true
-		oneOf:
-		- admin
-		- editor
-		- viewer
-	`)
-	if err := os.WriteFile(filepath.Join(schemaDir, "basic.yaml"), schemaContent, 0644); err != nil {
-		t.Fatalf("cannot write schema: %v", err)
-	}
+	t.Run("error on missing file", func(t *testing.T) {
+		_, err := Load("nonexistent.yaml")
+		assert.Error(t, err)
+	})
 
-	// // Mock the listSchemaNames to return our schema
-	// listSchemaNames := func(schemaDir string) ([]string, error) {
-	// 	if schemaDir != "" {
-	// 		return []string{"basic"}, nil
-	// 	}
-	// 	return nil, os.ErrNotExist
-	// }
+	t.Run("error on invalid yaml", func(t *testing.T) {
+		_, err := Load(filepath.Join("testdata", "invalid.yaml"))
+		assert.Error(t, err)
+	})
 
-	// var out strings.Builder
-	// err := ListSchemas(&out, schemaDir)
-	// if err != nil {
-	// 	t.Errorf("ListSchemas error: %v", err)
-	// }
-
-	// result := out.String()
-	// if !strings.Contains(result, "basic") {
-	// 	t.Errorf("ListSchemas did not show basic schema: %s", result)
-	// }
+	t.Run("error on missing name", func(t *testing.T) {
+		_, err := Load(filepath.Join("testdata", "missing-name.yaml"))
+		assert.Error(t, err)
+	})
 }
 
-// func TestShowSchema(t *testing.T) {
-// 	tempDir := t.TempDir()
-// 	schemaDir := filepath.Join(tempDir, "schemas")
-// 	if err := os.Mkdir(schemaDir, 0755); err != nil {
-// 		t.Fatalf("cannot create schema dir: %v", err)
-// 	}
+func TestLoadDir(t *testing.T) {
+	t.Run("loads all schemas in directory", func(t *testing.T) {
+		schemas, err := LoadDir(filepath.Join("testdata", "schemas"))
+		require.NoError(t, err)
+		assert.Len(t, schemas, 2)
+		assert.Contains(t, schemas, "test")
+		assert.Contains(t, schemas, "another")
+	})
 
-// 	schemaContent := []byte(`
-// type: claims
-// fields:
-//   email:
-//     type: string
-//     required: true
-// `)
-// 	if err := os.WriteFile(filepath.Join(schemaDir, "basic.yaml"), schemaContent, 0644); err != nil {
-// 		t.Fatalf("cannot write schema: %v", err)
-// 	}
+	t.Run("error on duplicate schema name", func(t *testing.T) {
+		_, err := LoadDir(filepath.Join("testdata", "duplicate"))
+		assert.Error(t, err)
+	})
 
-// 	// Mock the loadSchema to return our schema
-// 	var loadedSchema *Schema
-// 	loadSchema = func(schemaDir, name string) (*Schema, error) {
-// 		if schemaDir != "" && name == "basic" {
-// 			loadedSchema = &Schema{
-// 				Type: "claims",
-// 				Fields: map[string]FieldSpec{
-// 					"email": {
-// 						Type:     "string",
-// 						Required: true,
-// 					},
-// 				},
-// 			}
-// 			return loadedSchema, nil
-// 		}
-// 		return nil, os.ErrNotExist
-// 	}
+	t.Run("ignores non-yaml files", func(t *testing.T) {
+		schemas, err := LoadDir(filepath.Join("testdata", "mixed"))
+		require.NoError(t, err)
+		assert.Len(t, schemas, 1)
+		assert.Contains(t, schemas, "test")
+	})
+}
 
-// 	var out strings.Builder
-// 	err := ShowSchema(&out, schemaDir, "basic")
-// 	if err != nil {
-// 		t.Errorf("ShowSchema error: %v", err)
-// 	}
+func TestValidate(t *testing.T) {
+	t.Run("validates required fields", func(t *testing.T) {
+		s := &Schema{
+			Name: "test",
+			Fields: []Field{
+				{Name: "name", Type: TypeString, Required: true},
+			},
+		}
+		err := s.Validate(map[string]string{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "field \"name\" is required")
+	})
 
-// 	result := out.String()
-// 	if !strings.Contains(result, "type: claims") {
-// 		t.Errorf("ShowSchema did not show schema content: %s", result)
-// 	}
-// }
+	t.Run("validates enum fields", func(t *testing.T) {
+		s := &Schema{
+			Name: "test",
+			Fields: []Field{
+				{Name: "status", Type: TypeEnum, Values: []string{"active", "inactive"}, Required: true},
+			},
+		}
+		err := s.Validate(map[string]string{"status": "invalid"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "field \"status\": \"invalid\" is not one of")
+	})
 
-// func TestValidateSchema(t *testing.T) {
-// 	tempDir := t.TempDir()
-// 	schemaDir := filepath.Join(tempDir, "schemas")
-// 	if err := os.Mkdir(schemaDir, 0755); err != nil {
-// 		t.Fatalf("cannot create schema dir: %v", err)
-// 	}
-
-// 	schemaContent := []byte(`
-// type: claims
-// fields:
-//   email:
-//     type: string
-//     required: true
-//   age:
-//     type: integer
-//     minimum: 18
-// `)
-// 	if err := os.WriteFile(filepath.Join(schemaDir, "basic.yaml"), schemaContent, 0644); err != nil {
-// 		t.Fatalf("cannot write schema: %v", err)
-// 	}
-
-// 	// Create a valid claims map
-// 	claims := map[string]interface{}{
-// 		"email": "[EMAIL_ADDRESS]",
-// 		"age":   25,
-// 	}
-
-// 	var out strings.Builder
-// 	err := ValidateSchema(&out, schemaDir, "basic", claims)
-// 	if err != nil {
-// 		t.Errorf("ValidateSchema error: %v", err)
-// 	}
-
-// 	result := out.String()
-// 	if !strings.Contains(result, "validation successful") {
-// 		t.Errorf("ValidateSchema validation failed unexpectedly: %s", result)
-// 	}
-// }
-
-// func TestValidateSchemaMissingField(t *testing.T) {
-// 	tempDir := t.TempDir()
-// 	schemaDir := filepath.Join(tempDir, "schemas")
-// 	if err := os.Mkdir(schemaDir, 0755); err != nil {
-// 		t.Fatalf("cannot create schema dir: %v", err)
-// 	}
-
-// 	schemaContent := []byte(`
-// type: claims
-// fields:
-//   email:
-//     type: string
-//     required: true
-// `)
-// 	if err := os.WriteFile(filepath.Join(schemaDir, "basic.yaml"), schemaContent, 0644); err != nil {
-// 		t.Fatalf("cannot write schema: %v", err)
-// 	}
-
-// 	// Claims map missing required email field
-// 	claims := map[string]interface{}{
-// 		"age": 25,
-// 	}
-
-// 	var out strings.Builder
-// 	err := ValidateSchema(&out, schemaDir, "basic", claims)
-// 	if err == nil {
-// 		t.Errorf("ValidateSchema expected error for missing required field but got nil")
-// 	}
-
-// 	result := out.String()
-// 	if !strings.Contains(result, "email is required") {
-// 		t.Errorf("ValidateSchema error message does not mention missing field: %s", result)
-// 	}
-// }
-
-// func TestValidateSchemaInvalidValue(t *testing.T) {
-// 	tempDir := t.TempDir()
-// 	schemaDir := filepath.Join(tempDir, "schemas")
-// 	if err := os.Mkdir(schemaDir, 0755); err != nil {
-// 		t.Fatalf("cannot create schema dir: %v", err)
-// 	}
-
-// 	schemaContent := []byte(`
-// type: claims
-// fields:
-//   role:
-//     type: string
-//     required: true
-//     oneOf:
-//       - admin
-//       - editor
-//       - viewer
-// `)
-// 	if err := os.WriteFile(filepath.Join(schemaDir, "basic.yaml"), schemaContent, 0644); err != nil {
-// 		t.Fatalf("cannot write schema: %v", err)
-// 	}
-
-// 	// Claims map with invalid role value
-// 	claims := map[string]interface{}{
-// 		"email": "[EMAIL_ADDRESS]",
-// 		"role":  "manager",
-// 	}
-
-// 	var out strings.Builder
-// 	err := ValidateSchema(&out, schemaDir, "basic", claims)
-// 	if err == nil {
-// 		t.Errorf("ValidateSchema expected error for invalid value but got nil")
-// 	}
-
-// 	result := out.String()
-// 	if !strings.Contains(result, "role must be one of: [admin editor viewer]") {
-// 		t.Errorf("ValidateSchema error message does not mention invalid value: %s", result)
-// 	}
-// }
-
-// func ValidateClaims(claims map[string]interface{}) error {
-// 	return nil
-// }
-//
+	t.Run("allows valid values", func(t *testing.T) {
+		s := &Schema{
+			Name: "test",
+			Fields: []Field{
+				{Name: "name", Type: TypeString, Required: true},
+				{Name: "status", Type: TypeEnum, Values: []string{"active", "inactive"}},
+			},
+		}
+		err := s.Validate(map[string]string{"name": "test", "status": "active"})
+		assert.NoError(t, err)
+	})
+}
