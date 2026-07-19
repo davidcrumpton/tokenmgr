@@ -12,46 +12,45 @@ func TestListSchemas(t *testing.T) {
 	if err := os.Mkdir(schemaDir, 0755); err != nil {
 		t.Fatalf("cannot create schema dir: %v", err)
 	}
+
+	// Create a dummy schema file
+	schemaContent := []byte(`
+	type: claims
+	fields:
+	email:
+		type: string
+		required: true
+	role:
+		type: string
+		required: true
+		oneOf:
+		- admin
+		- editor
+		- viewer
+	`)
+	if err := os.WriteFile(filepath.Join(schemaDir, "basic.yaml"), schemaContent, 0644); err != nil {
+		t.Fatalf("cannot write schema: %v", err)
+	}
+
+	// // Mock the listSchemaNames to return our schema
+	// listSchemaNames := func(schemaDir string) ([]string, error) {
+	// 	if schemaDir != "" {
+	// 		return []string{"basic"}, nil
+	// 	}
+	// 	return nil, os.ErrNotExist
+	// }
+
+	// var out strings.Builder
+	// err := ListSchemas(&out, schemaDir)
+	// if err != nil {
+	// 	t.Errorf("ListSchemas error: %v", err)
+	// }
+
+	// result := out.String()
+	// if !strings.Contains(result, "basic") {
+	// 	t.Errorf("ListSchemas did not show basic schema: %s", result)
+	// }
 }
-
-// 	// Create a dummy schema file
-// 	schemaContent := []byte(`
-// type: claims
-// fields:
-//   email:
-//     type: string
-//     required: true
-//   role:
-//     type: string
-//     required: true
-//     oneOf:
-//       - admin
-//       - editor
-//       - viewer
-// `)
-// 	if err := os.WriteFile(filepath.Join(schemaDir, "basic.yaml"), schemaContent, 0644); err != nil {
-// 		t.Fatalf("cannot write schema: %v", err)
-// 	}
-
-// 	// Mock the listSchemaNames to return our schema
-// 	listSchemaNames = func(schemaDir string) ([]string, error) {
-// 		if schemaDir != "" {
-// 			return []string{"basic"}, nil
-// 		}
-// 		return nil, os.ErrNotExist
-// 	}
-
-// 	var out strings.Builder
-// 	err := ListSchemas(&out, schemaDir)
-// 	if err != nil {
-// 		t.Errorf("ListSchemas error: %v", err)
-// 	}
-
-// 	result := out.String()
-// 	if !strings.Contains(result, "basic") {
-// 		t.Errorf("ListSchemas did not show basic schema: %s", result)
-// 	}
-// }
 
 // func TestShowSchema(t *testing.T) {
 // 	tempDir := t.TempDir()
@@ -214,7 +213,6 @@ func TestListSchemas(t *testing.T) {
 // 		t.Errorf("ValidateSchema error message does not mention invalid value: %s", result)
 // 	}
 // }
-
 
 // func ValidateClaims(claims map[string]interface{}) error {
 // 	return nil
