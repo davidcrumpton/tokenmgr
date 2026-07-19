@@ -1,0 +1,7 @@
+kind: ClaimSchema
+name: another
+fields:
+  - name: description
+    type: string
+    required: true
+    description: A description

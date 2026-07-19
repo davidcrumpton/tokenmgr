@@ -1,0 +1,12 @@
+kind: ClaimSchema
+name: test
+fields:
+  - name: name
+    type: string
+    required: true
+    description: The name of the token
+  - name: age
+    type: number
+    required: false
+    description: The age of the token
+invalid yaml content without proper indentation
