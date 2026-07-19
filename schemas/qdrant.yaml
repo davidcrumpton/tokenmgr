@@ -1,0 +1,29 @@
+kind: ClaimSchema
+name: qdrant
+
+fields:
+  - name: service
+    type: string
+    required: true
+    default: qdrant
+
+  - name: collection
+    type: string
+    required: true
+    description: Qdrant collection this token is associated with
+
+  - name: host
+    type: string
+    description: Host or connection string for the Qdrant instance
+
+  - name: purpose
+    type: string
+    description: Human-readable reason this token exists
+
+  - name: environment
+    type: enum
+    values:
+      - dev
+      - test
+      - prod
+    default: dev
