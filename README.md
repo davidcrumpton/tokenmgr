@@ -145,8 +145,13 @@ Signing keys are abstracted behind a `KeySource` interface
 | Source | Status | Notes |
 | --- | --- | --- |
 | `FileKeySource` | done | base64-encoded 64-byte Ed25519 seed on disk |
-| `EnvKeySource` | done | same format, read from an env var |
+| `EnvKeySource` | done | same format, read from an env var TOKENMGR_KEY |
 | `VaultKeySource` | stub | intended to sign via Vault's transit engine so the private key never leaves Vault; not yet wired up |
+
+``Note``
+
+- `--key` is silently ignored if `TOKENMGR_KEY` is defined.
+- Keys are always generated to a file on disk even if `TOKENMGR_KEY` is set.
 
 ## Project layout
 

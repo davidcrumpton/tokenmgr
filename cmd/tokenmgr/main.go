@@ -23,7 +23,8 @@ import (
 	"tokenmgr/internal/token"
 )
 
-const version = "v0.1.0"
+const envKeyName = "TOKENMGR_KEY"
+const version = "v0.1.1"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -136,8 +137,9 @@ func cmdIssue(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *keyPath == "" {
-		return fmt.Errorf("--key is required")
+	_, useEnvKey := os.LookupEnv(envKeyName)
+	if !useEnvKey && *keyPath == "" {
+		return fmt.Errorf("--key is required when " + envKeyName + " is undefined")
 	}
 
 	values := map[string]string{}
@@ -190,13 +192,23 @@ func cmdIssue(args []string) error {
 		payload["exp"] = expUnix
 	}
 
-	ks := &keysource.FileKeySource{Path: *keyPath}
-	tok, err := token.Issue(ks, payload)
-	if err != nil {
-		return err
+	if !useEnvKey {
+		ks := &keysource.FileKeySource{Path: *keyPath}
+		tok, err := token.Issue(ks, payload)
+		if err != nil {
+			return err
+		}
+		fmt.Println(tok)
+		return nil
+	} else {
+		ks := &keysource.EnvKeySource{VarName: envKeyName}
+		tok, err := token.Issue(ks, payload)
+		if err != nil {
+			return err
+		}
+		fmt.Println(tok)
+		return nil
 	}
-	fmt.Println(tok)
-	return nil
 }
 
 func newJTI() string {
