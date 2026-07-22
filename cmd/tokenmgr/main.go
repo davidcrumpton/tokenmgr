@@ -252,10 +252,7 @@ func cmdVerify(args []string) error {
 	res := token.Verify(pub, tok)
 	if !res.Valid {
 		fmt.Println("✗ signature invalid")
-		if res.Err != nil {
-			fmt.Printf("  reason: %v\n", res.Err)
-		}
-		os.Exit(1)
+		return res.Err
 	}
 
 	fmt.Println("✓ signature valid")
