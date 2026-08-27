@@ -1,0 +1,101 @@
+[
+    {
+        "id": "08e051e9bf820653",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "3bb3ccb0e0840b90",
+        "type": "function",
+        "z": "08e051e9bf820653",
+        "name": "Validate Bearer token",
+        "func": "const TOKENMGR_PUBKEY = 'p1jdd5yJKobvK0GUMo9VJA/BSdZtCiLzyVel6yOUjVY='\n\nfunction b64urlDecode(value) {\n    const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');\n    const pad = normalized.length % 4;\n    const padded = pad ? normalized + '='.repeat(4 - pad) : normalized;\n    return Buffer.from(padded, 'base64');\n}\n\nfunction parseTokenPart(part) {\n    let jsonText = '';\n    try {\n        jsonText = b64urlDecode(part).toString('utf8');\n        return JSON.parse(jsonText);\n    } catch (err) {\n        throw new Error('invalid JWT segment: ' + err.message);\n    }\n}\n\nconst defaultPub = 'P9hw69ClmtnxaQFX5Ftaa+nFx1Fj6e5CDYta1Ef4S+0=';\nconst pubBase64 = (TOKENMGR_PUBKEY || defaultPub).trim();\nconst pubKey = crypto.createPublicKey({\n    key: {\n        kty: 'OKP',\n        crv: 'Ed25519',\n        x: Buffer.from(pubBase64, 'base64').toString('base64url')\n    },\n    format: 'jwk'\n});\n\nlet authHeader = '';\n// Customized Header\nif (msg.headers && msg.headers.Authorization) {\n    authHeader = msg.headers.Authorization;\n//  Standard Request IN\n} else if (msg.req && msg.req.headers && msg.req.headers.authorization) {\n    authHeader = msg.req.headers.authorization;\n}\n\nif (!/^Bearer\\s+/i.test(authHeader)) {\n    msg.valid = false;\n    msg.statusCode = 401;\n    msg.payload = { valid: false, error: 'Missing Bearer authorization header' };\n    return msg;\n}\n\nconst token = authHeader.replace(/^Bearer\\s+/i, '').trim();\nconst parts = token.split('.');\n\nif (parts.length !== 3) {\n    msg.valid = false;\n    msg.statusCode = 401;\n    msg.payload = { valid: false, error: 'Token is not a JWT-shaped value' };\n    return msg;\n}\n\ntry {\n    const header = parseTokenPart(parts[0]);\n    const claims = parseTokenPart(parts[1]);\n    const signingInput = parts[0] + '.' + parts[1];\n    const sig = b64urlDecode(parts[2]);\n\n    if (header.alg !== 'EdDSA') {\n        throw new Error('Unsupported token alg: ' + header.alg);\n    }\n\n    const isValid = crypto.verify(null, Buffer.from(signingInput), pubKey, sig);\n    if (!isValid) {\n        throw new Error('signature does not match');\n    }\n\n    msg.valid = true;\n    msg.header = header;\n    msg.claims = claims;\n    msg.payload = { valid: true, header, claims };\n    return msg;\n} catch (err) {\n    msg.valid = false;\n    msg.statusCode = 401;\n    msg.payload = { valid: false, error: err.message };\n    return msg;\n}\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [
+            {
+                "var": "crypto",
+                "module": "crypto"
+            }
+        ],
+        "x": 460,
+        "y": 140,
+        "wires": [
+            [
+                "c7e5b9b6f0c24d11"
+            ]
+        ]
+    },
+    {
+        "id": "c7e5b9b6f0c24d11",
+        "type": "function",
+        "z": "08e051e9bf820653",
+        "name": "Validate token expiry",
+        "func": "const now = Math.floor(Date.now() / 1000);\n\nif (msg.claims && msg.claims.exp !== undefined && Number(msg.claims.exp) <= now) {\n    msg.valid = false;\n    msg.statusCode = 401;\n    msg.payload = { valid: false, error: 'Token has expired' };\n    return msg;\n}\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 100,
+        "wires": [
+            [
+                "dd94efe98f827c2c",
+                "441c82b35dfa83a5"
+            ]
+        ]
+    },
+    {
+        "id": "608308c6505616ba",
+        "type": "http in",
+        "z": "08e051e9bf820653",
+        "name": "GitLab Hook",
+        "url": "/services/gitlab",
+        "method": "post",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 190,
+        "y": 140,
+        "wires": [
+            [
+                "3bb3ccb0e0840b90"
+            ]
+        ]
+    },
+    {
+        "id": "dd94efe98f827c2c",
+        "type": "http response",
+        "z": "08e051e9bf820653",
+        "name": "Response",
+        "statusCode": "",
+        "headers": {},
+        "x": 710,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "441c82b35dfa83a5",
+        "type": "debug",
+        "z": "08e051e9bf820653",
+        "name": "debug bearer function",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 730,
+        "y": 200,
+        "wires": []
+    }
+]

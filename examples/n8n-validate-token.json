@@ -1,0 +1,110 @@
+{
+  "name": "tokenmgr - Validate Bearer Token",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "services/gitlab",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7c6b6a1e-9c7f-4d9f-a7f2-2bcf4e2db8f5",
+      "name": "GitLab Hook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        260,
+        300
+      ],
+      "webhookId": "7c6b6a1e-9c7f-4d9f-a7f2-2bcf4e2db8f5"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const crypto = require('crypto');\nconst TOKENMGR_PUBKEY = 'p1jdd5yJKobvK0GUMo9VJA/BSdZtCiLzyVel6yOUjVY=';\n\nfunction b64urlDecode(value) {\n  const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');\n  const pad = normalized.length % 4;\n  const padded = pad ? normalized + '='.repeat(4 - pad) : normalized;\n  return Buffer.from(padded, 'base64');\n}\n\nfunction parseTokenPart(part) {\n  try {\n    return JSON.parse(b64urlDecode(part).toString('utf8'));\n  } catch (error) {\n    throw new Error(`invalid JWT segment: ${error.message}`);\n  }\n}\n\nconst input = $input.first().json;\nconst headers = input.headers || {};\nconst authHeader = headers.authorization || headers.Authorization || '';\n\nfunction invalid(error) {\n  return [{ json: { statusCode: 401, body: { valid: false, error } } }];\n}\n\nif (!/^Bearer\\s+/i.test(authHeader)) {\n  return invalid('Missing Bearer authorization header');\n}\n\nconst token = authHeader.replace(/^Bearer\\s+/i, '').trim();\nconst parts = token.split('.');\nif (parts.length !== 3) {\n  return invalid('Token is not a JWT-shaped value');\n}\n\ntry {\n  const header = parseTokenPart(parts[0]);\n  const claims = parseTokenPart(parts[1]);\n  const signingInput = `${parts[0]}.${parts[1]}`;\n  const signature = b64urlDecode(parts[2]);\n  const pubKey = crypto.createPublicKey({\n    key: {\n      kty: 'OKP',\n      crv: 'Ed25519',\n      x: Buffer.from(TOKENMGR_PUBKEY, 'base64').toString('base64url')\n    },\n    format: 'jwk'\n  });\n\n  if (header.alg !== 'EdDSA') {\n    throw new Error(`Unsupported token alg: ${header.alg}`);\n  }\n  if (!crypto.verify(null, Buffer.from(signingInput), pubKey, signature)) {\n    throw new Error('signature does not match');\n  }\n\n  return [{ json: { statusCode: 200, valid: true, header, claims, body: { valid: true, header, claims } } }];\n} catch (error) {\n  return invalid(error.message);\n}"
+      },
+      "id": "b5e2ef35-93e0-4b41-a8bb-2bd9f9ebc5bf",
+      "name": "Validate Bearer token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const item = $input.first();\nconst now = Math.floor(Date.now() / 1000);\n\nif (item.json.valid && item.json.claims.exp !== undefined && Number(item.json.claims.exp) <= now) {\n  item.json.valid = false;\n  item.json.statusCode = 401;\n  item.json.body = { valid: false, error: 'Token has expired' };\n}\n\nreturn [item];"
+      },
+      "id": "f9c34f1c-e29d-4ec6-a8d0-2d5a16fd2a9a",
+      "name": "Validate token expiry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseCode": "={{ $json.statusCode || 200 }}"
+        }
+      },
+      "id": "d4cf5a4a-4b12-4e9c-93f6-4e75b4a3f6ad",
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        980,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "GitLab Hook": {
+      "main": [
+        [
+          {
+            "node": "Validate Bearer token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Bearer token": {
+      "main": [
+        [
+          {
+            "node": "Validate token expiry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate token expiry": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {},
+  "versionId": "9cf2c9a6-3b37-4b07-bf08-2f0d1bca76d4",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
