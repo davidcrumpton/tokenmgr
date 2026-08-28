@@ -1,0 +1,23 @@
+kind: ClaimSchema
+name: ollama
+
+fields:
+  - name: service
+    type: string
+    required: true
+
+  - name: host
+    type: string
+    description: Host or connection string using the Ollama service
+
+  - name: purpose
+    type: string
+    description: Human-readable reason this token exists
+
+  - name: environment
+    type: enum
+    values:
+      - dev
+      - test
+      - prod
+    default: dev

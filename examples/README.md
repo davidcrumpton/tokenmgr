@@ -16,3 +16,6 @@ Before activating the workflow:
 2. Allow the Node.js `crypto` builtin for n8n Code nodes. For self-hosted n8n, set `NODE_FUNCTION_ALLOW_BUILTIN=crypto` according to your n8n deployment setup.
 3. Activate the workflow and send the bearer token in the `Authorization` header to the webhook production URL.
 
+## Ollama TLS nginx config
+
+This example shows how to configure nginx to work with the Token Manager by front ending Ollama with HTTPS and requiring the Bearer token in the `Authorization` header. It demonstrates how to set up a reverse proxy that validates tokens for incoming API requests. The configuration includes directives to check the token's structure, signature, and expiration time, ensuring that only valid requests are forwarded to the backend server.
