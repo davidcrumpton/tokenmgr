@@ -121,8 +121,8 @@ func TestGenerateKeyFileEmptyPath(t *testing.T) {
 }
 
 func TestGenerateKeyFileInvalidPath(t *testing.T) {
-	// Try to create key in root directory (should fail due to permissions)
-	_, err := GenerateKeyFile("/tokenmgr.key")
+	// A directory cannot be used as a file path on any runner.
+	_, err := GenerateKeyFile(t.TempDir())
 	if err == nil {
 		t.Errorf("expected error for invalid path")
 	}
