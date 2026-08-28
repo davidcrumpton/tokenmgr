@@ -1,0 +1,26 @@
+image: golang:1.24
+
+stages:
+  - test
+
+tokenmgr:
+  stage: test
+  script:
+    - set -eu
+    - go test ./...
+    - go build -o tokenmgr ./cmd/tokenmgr
+    - ./tokenmgr keygen --out ci.key
+    - pubkey="$(./tokenmgr pubkey --key ci.key)"
+    - token="$(./tokenmgr issue --key ci.key --iss ci-test --sub tokenmgr --aud ci --claim purpose=integration-test)"
+    - verification="$(./tokenmgr verify --pubkey "$pubkey" "$token")"
+    - printf '%s\n' "$verification"
+    - printf '%s\n' "$verification" | grep -q "signature valid"
+    - printf '%s\n' "$verification" | grep -q 'purpose.*integration-test'
+    - short_token="$(./tokenmgr issue --key ci.key --iss ci-test --exp 1s)"
+    - sleep 2
+    - expired_verification="$(./tokenmgr verify --pubkey "$pubkey" "$short_token")"
+    - printf '%s\n' "$expired_verification"
+    - printf '%s\n' "$expired_verification" | grep -q "signature valid"
+    - expiration="$(printf '%s\n' "$expired_verification" | awk '$1 == "exp" {print $2}')"
+    - test -n "$expiration"
+    - test "$expiration" -le "$(date +%s)"
