@@ -75,13 +75,35 @@ git tag v0.1.2
 git push github v0.1.2
 ```
 
-Watch the Release workflow. Then confirm:
+Watch the Release workflow, then run the checks below. They are not
+ceremony: v0.1.1 shipped green and still had an unusable module zip, because
+`go build` and `go test` pass on a checkout no matter what the files are
+called. Only a real `go install` from the published tag catches that.
 
 ```sh
-gh release view v0.1.2 --repo davidcrumpton/tokenmgr
-brew update && brew upgrade davidcrumpton/tap/tokenmgr
-tokenmgr version
+tag=v0.1.2
+
+# 1. Release exists with all artifacts
+curl -s https://api.github.com/repos/davidcrumpton/tokenmgr/releases/tags/$tag \
+  | jq -r '.name, (.assets | length)'
+
+# 2. The Go module is installable (this is the one that broke in v0.1.1)
+GOBIN=$(mktemp -d) go install \
+  github.com/davidcrumpton/tokenmgr/cmd/tokenmgr@$tag && "$GOBIN/tokenmgr" version
+
+# 3. Homebrew picks it up and the formula test passes
+brew update && brew upgrade davidcrumpton/tap/tokenmgr && brew test davidcrumpton/tap/tokenmgr
+
+# 4. Artifacts are intact and signed
+shasum -a 256 -c <(grep 'darwin_arm64.tar.gz$' checksums.txt)
+cosign verify-blob --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/davidcrumpton/tokenmgr/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
 ```
+
+`scripts/check-module-zip.sh` runs step 2's precondition on every push, so a
+bad filename fails CI instead of the release.
 
 ## Local verification without tagging
 
@@ -127,10 +149,17 @@ These are recorded so they can be rebuilt if lost:
 
 | Workflow | Trigger | Jobs |
 | --- | --- | --- |
-| `ci.yml` | push to `main`, PRs | lint, test (ubuntu + macos), cross-build, snapshot release |
+| `ci.yml` | push to `main`, PRs | lint, test (ubuntu + macos), cross-build, packaging |
 | `release.yml` | `v*` tag | goreleaser, provenance attestation, summary |
 
-The end-to-end checks live in `scripts/integration-test.sh` rather than in
-workflow YAML, so GitHub Actions and the GitLab pipeline cannot drift. The
-script covers the roundtrip, tamper detection, rejection under an unrelated
+The `packaging` job runs `scripts/check-module-zip.sh` and a full snapshot
+release. The end-to-end checks live in `scripts/integration-test.sh` rather
+than in workflow YAML, so GitHub Actions and the GitLab pipeline cannot drift.
+The script covers the roundtrip, tamper detection, rejection under an unrelated
 key, the "`exp` is advisory" contract, and schema validation failures.
+
+## Known issues in released versions
+
+| Version | Issue | Resolution |
+| --- | --- | --- |
+| v0.1.1 | Module zip rejected by Go: an example file was named `examples/:NodeRed:ValideToken.json` and `:` is not allowed in module paths. `go install ...@v0.1.1` fails. Tarballs, packages and the formula are unaffected. | Fixed and renamed in v0.1.2; v0.1.1 is retracted in `go.mod`. |
