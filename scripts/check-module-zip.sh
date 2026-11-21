@@ -16,8 +16,12 @@
 # This uses golang.org/x/mod/zip, the same validator the module proxy runs,
 # instead of reimplementing the character rules. The checker is built in a
 # throwaway module so tokenmgr's own go.mod stays free of the dependency, and
-# it validates a `git archive` export so untracked files (dist/, images/)
-# cannot influence the result.
+# it validates a `git archive` export so untracked files (dist/) cannot
+# influence the result.
+#
+# It also guards the other direction: the README logo must exist in the repo but
+# must not appear in the export (see .gitattributes), because the module zip is
+# built from that export and every `go install` would otherwise download it.
 #
 # Usage: scripts/check-module-zip.sh   (from anywhere)
 set -eu
@@ -34,6 +38,27 @@ trap 'rm -rf "$work"' EXIT INT TERM
 # Export exactly what a tag would contain: tracked files only.
 mkdir -p "$work/tree"
 git archive --format=tar HEAD | tar -x -C "$work/tree"
+
+# The README logo is a repo-only asset and must stay out of the module, or every
+# `go install` downloads it. That is enforced by `images/ export-ignore` in
+# .gitattributes, which git archive honours (and so does the module proxy, which
+# builds the zip from the same tree). Assert it here: without this, deleting
+# that one line silently ships the image to every user and nothing fails.
+if [ -e "$work/tree/images" ]; then
+    echo "images/ is in the tag export, so it would ship in the module zip:" >&2
+    ls -l "$work/tree/images" >&2
+    echo "check the 'images/ export-ignore' line in .gitattributes" >&2
+    exit 1
+fi
+
+# The asset is excluded from the export, so nothing downstream would notice it
+# going missing while README.md still points at it.
+if grep -q 'src="images/' README.md; then
+    [ -f images/tokenmanager-logo.png ] || {
+        echo "README.md references images/tokenmanager-logo.png but it is missing" >&2
+        exit 1
+    }
+fi
 
 cd "$work"
 go mod init zipcheck >/dev/null 2>&1

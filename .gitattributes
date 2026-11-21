@@ -1,0 +1,8 @@
+# The README logo is a repo-only asset: it makes the GitHub page look right and
+# is of no use to anyone installing the module. `git archive` honours
+# export-ignore, and that is what the module zip is built from, so this keeps
+# the image out of `go install` without touching the repo layout.
+#
+# scripts/check-module-zip.sh asserts the image is absent from the tag export,
+# so deleting this line fails CI instead of quietly shipping the file.
+images/ export-ignore

@@ -40,6 +40,20 @@ Archives contain `tokenmgr`, `README.md`, `LICENSE` and the example schemas
 under `schemas/`. Packages additionally install the schemas to
 `/usr/share/tokenmgr/schemas` and the docs to `/usr/share/doc/tokenmgr/`.
 
+### What the Go module contains
+
+The module zip is the whole repo tree, so anything in the repo is downloaded by
+every `go install`. The README logo under `images/` is a repo-only asset — it
+makes the GitHub page look right and is no use to an installer — so it is
+excluded with `images/ export-ignore` in `.gitattributes`. `git archive` honours
+that, and the module zip is built from the same export, so `go install` never
+sees it. `scripts/check-module-zip.sh` asserts the image is absent from the
+export, so deleting that line fails CI instead of quietly shipping the file.
+
+One consequence: the `README.md` inside the release tarballs points at an image
+that is not in the tarball, because GoReleaser ships only `schemas/`, `LICENSE`
+and `README.md`. The README renders correctly on GitHub and in a clone.
+
 ## Versioning
 
 `cmd/tokenmgr/main.go` carries the source default:

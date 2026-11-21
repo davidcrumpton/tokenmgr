@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/tokenmanager-logo.jpg" alt="tokenmgr logo" width="180">
+  <img src="images/tokenmanager-logo.png" alt="tokenmgr logo" width="180">
 </p>
 
 # tokenmgr
