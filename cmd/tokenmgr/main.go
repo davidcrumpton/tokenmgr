@@ -31,7 +31,7 @@ const envKeyName = "TOKENMGR_KEY"
 //
 // It must stay a var: the linker's -X flag cannot assign to a const, and a
 // const here silently keeps the source default in every release build.
-var version = "v0.1.1"
+var version = "v0.1.2"
 
 func main() {
 	if len(os.Args) < 2 {

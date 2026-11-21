@@ -4,7 +4,7 @@ Note these examples are provided to demonstrate how to use the Token Manager in 
 
 ## Node Red
 
-This example shows how to use the Token Manager in Node Red. It demonstrates how to set up a flow that retrieves and manages tokens for API requests.  It contains two nodes: one validates the token structure and signature, and the other validates the expired time of the token. The flow is designed to be simple and easy to understand, making it a great starting point for developers looking to integrate token management into their Node Red applications.
+Import [`nodered-validate-token.json`](nodered-validate-token.json) into Node-RED. This example shows how to use the Token Manager in Node Red. It demonstrates how to set up a flow that retrieves and manages tokens for API requests.  It contains two nodes: one validates the token structure and signature, and the other validates the expired time of the token. The flow is designed to be simple and easy to understand, making it a great starting point for developers looking to integrate token management into their Node Red applications.
 
 ## n8n
 
