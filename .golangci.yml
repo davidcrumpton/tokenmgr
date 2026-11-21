@@ -1,0 +1,34 @@
+# golangci-lint configuration.
+#
+# Adopted after the code was already written, so the first iteration keeps the
+# standard linter set and excludes the one class of findings that is genuinely
+# not actionable: unchecked errors from Close/Remove/Setenv/Print and friends,
+# where the only response would be to log and continue.
+#
+# When this was added the tree had zero findings outside _test.go. The test
+# files had one real issue (a dead assignment in TestEnvKeySource), which was
+# fixed rather than excluded.
+
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  exclusions:
+    presets:
+      # Unchecked errors on Close/Remove/Print: the canonical
+      # "std-error-handling" set from golangci-lint itself.
+      - std-error-handling
+    rules:
+      # Test helpers routinely ignore these; the assertions that matter are
+      # the t.Fatalf calls, not the cleanup errors.
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

@@ -15,8 +15,8 @@ import (
 
 	"crypto/ed25519"
 
-	"tokenmgr/internal/keysource"
-	"tokenmgr/internal/token"
+	"github.com/davidcrumpton/tokenmgr/internal/keysource"
+	"github.com/davidcrumpton/tokenmgr/internal/token"
 )
 
 // --- Test helpers ---

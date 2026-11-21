@@ -18,13 +18,20 @@ import (
 	"strings"
 	"time"
 
-	"tokenmgr/internal/keysource"
-	"tokenmgr/internal/schema"
-	"tokenmgr/internal/token"
+	"github.com/davidcrumpton/tokenmgr/internal/keysource"
+	"github.com/davidcrumpton/tokenmgr/internal/schema"
+	"github.com/davidcrumpton/tokenmgr/internal/token"
 )
 
 const envKeyName = "TOKENMGR_KEY"
-const version = "v0.1.1"
+
+// version is stamped at build time by goreleaser with
+//
+//	-X main.version=v{{ .Version }}
+//
+// It must stay a var: the linker's -X flag cannot assign to a const, and a
+// const here silently keeps the source default in every release build.
+var version = "v0.1.1"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -44,6 +51,9 @@ func main() {
 		err = cmdVerify(os.Args[2:])
 	case "schema":
 		err = cmdSchema(os.Args[2:])
+	case "version":
+		fmt.Println("tokenmgr " + version)
+		return
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -71,6 +81,7 @@ Usage:
   tokenmgr verify  --pubkey <base64-or-path> <token>
   tokenmgr schema  list --schema-dir <dir>
   tokenmgr schema  show --schema-dir <dir> --schema <name>
+  tokenmgr version                                     print the version
 `)
 }
 

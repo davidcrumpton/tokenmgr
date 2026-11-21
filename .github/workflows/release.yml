@@ -1,0 +1,109 @@
+name: Release
+
+# Tag-driven release. Push a tag to the GitHub remote:
+#   git tag v0.1.1 && git push github v0.1.1
+#
+# Produces (all from one GoReleaser run):
+#   * tarballs/zip for linux, darwin, freebsd, windows (amd64, arm64)
+#   * .deb / .rpm / .apk packages
+#   * Homebrew formula -> davidcrumpton/homebrew-tap
+#   * Scoop manifest   -> davidcrumpton/scoop-bucket
+#   * checksums.txt + SPDX SBOMs + keyless cosign signature
+#   * SLSA build provenance attestations for every artifact
+#
+# No container image: tokenmgr is a local CLI that operates on a token you
+# already hold, so an image would add a registry dependency without enabling
+# anything a tarball does not.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # create the release and upload assets
+  id-token: write # cosign keyless signing + provenance attestation
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION_FILE: go.mod
+
+jobs:
+  goreleaser:
+    name: GoReleaser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so the changelog can be generated
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+
+      # The tag is the source of truth, but a tag that disagrees with the
+      # source default is a trap for anyone who builds locally, so fail loudly
+      # instead of shipping a binary that reports a different version.
+      - name: Check tag matches the source version default
+        run: |
+          src="$(sed -n 's/^var version = "\(.*\)"$/\1/p' cmd/tokenmgr/main.go)"
+          echo "source default: $src   tag: ${{ github.ref_name }}"
+          if [ "$src" != "${{ github.ref_name }}" ]; then
+            echo "::error::tag ${{ github.ref_name }} does not match source version default $src"
+            exit 1
+          fi
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install syft (SBOMs)
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT with contents:write on davidcrumpton/homebrew-tap and
+          # davidcrumpton/scoop-bucket. The workflow's own GITHUB_TOKEN cannot
+          # push to a different repository.
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.deb
+            dist/*.rpm
+            dist/*.apk
+
+      - name: Release summary
+        run: |
+          {
+            echo "## Release ${{ github.ref_name }}"
+            echo
+            echo "| Artifact | Size |"
+            echo "| --- | --- |"
+            find dist -maxdepth 1 -type f \
+              \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.deb' \
+                 -o -name '*.rpm' -o -name '*.apk' -o -name 'checksums.txt' \) \
+              -exec du -h {} + | sort -k2 | awk '{printf "| `%s` | %s |\n", $2, $1}'
+            echo
+            echo "Signed with cosign (keyless). Verify:"
+            echo '```'
+            echo "cosign verify-blob --bundle checksums.txt.sigstore.json \\"
+            echo "  --certificate-identity-regexp '^https://github.com/${{ github.repository }}/' \\"
+            echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\"
+            echo "  checksums.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -35,4 +35,7 @@ data/
 tokenmgr
 internal/schema/testdata/
 
+# goreleaser output
+dist/
+
 *.key

@@ -135,8 +135,7 @@ func TestEnvKeySource(t *testing.T) {
 	defer os.Unsetenv("TEST_KEY")
 
 	s := &EnvKeySource{VarName: "TEST_KEY"}
-	pubkey, err := s.PublicKey()
-	if err == nil {
+	if _, err := s.PublicKey(); err == nil {
 		t.Error("expected error for invalid key in env var")
 	}
 
@@ -150,7 +149,7 @@ func TestEnvKeySource(t *testing.T) {
 	defer os.Unsetenv("TEST_KEY")
 
 	s = &EnvKeySource{VarName: "TEST_KEY"}
-	pubkey, err = s.PublicKey()
+	pubkey, err := s.PublicKey()
 	if err != nil {
 		t.Errorf("failed to read key from env: %v", err)
 	}
@@ -229,4 +228,3 @@ func TestVaultKeySource(t *testing.T) {
 		t.Errorf("expected name %s, got %s", expected, name)
 	}
 }
-

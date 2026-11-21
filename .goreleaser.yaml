@@ -1,0 +1,271 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+#
+# GoReleaser configuration for tokenmgr.
+#
+# One tag push produces, from a single build matrix:
+#   * release archives (tar.gz, zip on Windows) with the example schemas
+#   * .deb / .rpm / .apk packages
+#   * a Homebrew formula in davidcrumpton/homebrew-tap
+#   * a Scoop manifest in davidcrumpton/scoop-bucket
+#   * checksums, SPDX SBOMs and keyless cosign signatures over the checksums
+#
+# There is no container image: tokenmgr is a local CLI that runs against a
+# token you already hold, so shipping an image would only add a registry
+# dependency without enabling anything.
+#
+# Cut a release with:  git tag v0.1.1 && git push github v0.1.1
+# Dry run locally:     goreleaser release --snapshot --clean --skip=sbom,sign,publish
+
+version: 2
+
+project_name: tokenmgr
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: tokenmgr
+    main: ./cmd/tokenmgr
+    binary: tokenmgr
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      # main.version is the var printed by `tokenmgr version`. It is stamped
+      # from the git tag; the leading "v" is re-added because goreleaser
+      # strips it, and the source default already carries it.
+      - -s -w
+      - -X main.version=v{{ .Version }}
+    goos:
+      - linux
+      - darwin
+      - freebsd
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    ids:
+      - tokenmgr
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      # Ship the example schemas: the README's walkthrough uses them and a
+      # packaged user has no other copy.
+      - schemas/*.yaml
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# SPDX SBOM per archive (needs syft on PATH).
+sboms:
+  - id: archive-sbom
+    artifacts: archive
+
+# Keyless signing of the checksum file via the CI job's OIDC identity (needs
+# cosign on PATH and id-token: write). Verify with:
+#   cosign verify-blob --bundle checksums.txt.sigstore.json \
+#     --certificate-identity-regexp '^https://github.com/davidcrumpton/tokenmgr/' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+#     checksums.txt
+signs:
+  - id: cosign-checksums
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    artifacts: checksum
+    output: true
+    args:
+      - sign-blob
+      - --yes
+      - --bundle=${signature}
+      - ${artifact}
+
+nfpms:
+  - id: packages
+    ids:
+      - tokenmgr
+    package_name: tokenmgr
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: David M Crumpton
+    homepage: https://github.com/davidcrumpton/tokenmgr
+    maintainer: David Crumpton <azcrumpty@msn.com>
+    description: |-
+      Self-describing signed bearer tokens for homelab infrastructure.
+
+      tokenmgr signs a small JSON payload (JWT-shaped, Ed25519/EdDSA) so that a
+      token you issued months ago can still tell you what it was for. It is not
+      an auth system: nothing is stored, nothing is revocable, and no server-side
+      validation is assumed.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    epoch: 0
+    release: 1
+    umask: 0o755
+    contents:
+      - src: schemas/*.yaml
+        dst: /usr/share/tokenmgr/schemas
+        file_info:
+          mode: 0o644
+      - dst: /usr/share/doc/tokenmgr
+        type: dir
+        file_info:
+          mode: 0o755
+      - src: LICENSE
+        dst: /usr/share/doc/tokenmgr/LICENSE
+        file_info:
+          mode: 0o644
+      - src: README.md
+        dst: /usr/share/doc/tokenmgr/README.md
+        file_info:
+          mode: 0o644
+
+# Homebrew formula (macOS and Linuxbrew). The tap lives in its own repository
+# because formulae are not allowed in a project repo. TAP_GITHUB_TOKEN must be
+# a PAT with contents:write on davidcrumpton/homebrew-tap.
+brews:
+  - name: tokenmgr
+    repository:
+      owner: davidcrumpton
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/davidcrumpton/tokenmgr
+    description: Self-describing signed bearer tokens for homelab infrastructure
+    license: MIT
+    commit_author:
+      name: goreleaser-bot
+      email: aacrumpty@msn.com
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    install: |-
+      bin.install "tokenmgr"
+      # The README's walkthrough uses the example schemas, so keep them in the
+      # prefix and point caveats at the upgrade-stable opt path.
+      (share/"tokenmgr/schemas").install Dir["schemas/*.yaml"]
+    caveats: |-
+      Example claim schemas are installed in:
+        #{opt_share}/tokenmgr/schemas
+
+      That path is stable across upgrades (it goes through opt/), unlike the
+      versioned Cellar directory.
+
+      Generate a signing key, then issue and verify a token:
+        tokenmgr keygen --out tokenmgr.key
+        tokenmgr issue --key tokenmgr.key --iss homelab --claim purpose=demo
+        tokenmgr verify --pubkey "$(tokenmgr pubkey --key tokenmgr.key)" "$TOKEN"
+
+      List the bundled schemas with:
+        tokenmgr schema list --schema-dir #{opt_share}/tokenmgr/schemas
+    test: |-
+      assert_match "tokenmgr v#{version}", shell_output("#{bin}/tokenmgr version")
+
+      # The tool is only useful if a token it issues verifies, so the formula
+      # test signs and checks one end to end.
+      system "#{bin}/tokenmgr", "keygen", "--out", testpath/"k"
+      pub = shell_output("#{bin}/tokenmgr pubkey --key #{testpath}/k").strip
+      tok = shell_output("#{bin}/tokenmgr issue --key #{testpath}/k --iss brew --claim purpose=formula-test").strip
+      out = shell_output("#{bin}/tokenmgr verify --pubkey #{pub} #{tok}")
+      assert_match "signature valid", out
+      assert_match "formula-test", out
+
+# Scoop manifest for Windows (windows/amd64 and windows/arm64 builds exist).
+# Needs a bucket repo with the same PAT.
+scoops:
+  - name: tokenmgr
+    repository:
+      owner: davidcrumpton
+      name: scoop-bucket
+      branch: main
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: bucket
+    homepage: https://github.com/davidcrumpton/tokenmgr
+    description: Self-describing signed bearer tokens for homelab infrastructure
+    license: MIT
+    commit_author:
+      name: goreleaser-bot
+      email: aacrumpty@msn.com
+
+changelog:
+  use: github
+  sort: asc
+  abbrev: 7
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Documentation
+      regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Other
+      order: 999
+  filters:
+    exclude:
+      - '^chore(\(.+\))?:'
+      - '^test(\(.+\))?:'
+      - '^ci(\(.+\))?:'
+      - '^Merge pull request'
+      - '^Merge branch'
+
+release:
+  github:
+    owner: davidcrumpton
+    name: tokenmgr
+  draft: false
+  prerelease: auto
+  name_template: "tokenmgr {{ .Version }}"
+  header: |
+    ## tokenmgr {{ .Version }}
+
+    Install with one of:
+
+    ```sh
+    # Homebrew (macOS / Linux)
+    brew install davidcrumpton/tap/tokenmgr
+
+    # Debian / Ubuntu
+    sudo apt install ./tokenmgr_{{ .Version }}_linux_amd64.deb
+
+    # Fedora / RHEL
+    sudo dnf install ./tokenmgr-{{ .Version }}-1.x86_64.rpm
+
+    # Alpine
+    sudo apk add --allow-untrusted ./tokenmgr_{{ .Version }}_linux_amd64.apk
+
+    # Anywhere with Go
+    go install github.com/davidcrumpton/tokenmgr/cmd/tokenmgr@{{ .Tag }}
+    ```
+
+    Every artifact is covered by `checksums.txt`, which is signed with cosign
+    (keyless, GitHub OIDC) and accompanied by a build provenance attestation.
+  footer: |
+    **Full changelog**: https://github.com/davidcrumpton/tokenmgr/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    Artifacts also carry SPDX SBOMs (`*.spdx.json`) and SLSA build provenance
+    attestations (`gh attestation verify <file> --repo davidcrumpton/tokenmgr`).
+
+# Snapshot builds get a dev version and no publish.
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"

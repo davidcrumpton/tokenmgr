@@ -1,4 +1,4 @@
-module tokenmgr
+module github.com/davidcrumpton/tokenmgr
 
 go 1.24.0
 

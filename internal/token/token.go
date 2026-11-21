@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"tokenmgr/internal/keysource"
+	"github.com/davidcrumpton/tokenmgr/internal/keysource"
 )
 
 type header struct {

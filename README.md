@@ -38,11 +38,27 @@ get a straight answer instead of an opaque string in a config file.
 
 ## Install
 
-Requires Go 1.22+.
-
 ```bash
+# Homebrew (macOS / Linux)
+brew install davidcrumpton/tap/tokenmgr
+
+# Debian / Ubuntu, Fedora / RHEL, Alpine
+sudo apt install ./tokenmgr_<version>_linux_amd64.deb
+sudo dnf install ./tokenmgr-<version>-1.x86_64.rpm
+sudo apk add --allow-untrusted ./tokenmgr_<version>_linux_amd64.apk
+
+# Anywhere with Go 1.24+
+go install github.com/davidcrumpton/tokenmgr/cmd/tokenmgr@latest
+
+# Or from a checkout
 go build -o tokenmgr ./cmd/tokenmgr
 ```
+
+Release archives for linux, darwin, freebsd and windows (amd64 and arm64) are
+on the [releases page](https://github.com/davidcrumpton/tokenmgr/releases).
+Every artifact is covered by a `checksums.txt` signed with cosign (keyless),
+with SPDX SBOMs and build provenance attestations alongside. See
+[PACKAGING.md](PACKAGING.md) for how releases are built.
 
 ## Usage
 
@@ -156,11 +172,13 @@ Signing keys are abstracted behind a `KeySource` interface
 ## Project layout
 
 ```text
-cmd/tokenmgr/main.go       CLI: keygen, pubkey, issue, verify, schema
+cmd/tokenmgr/main.go       CLI: keygen, pubkey, issue, verify, schema, version
 internal/keysource/        KeySource interface + File/Env/Vault(stub)
 internal/token/            JWT build, sign, verify (stdlib only, EdDSA)
 internal/schema/           YAML claim schema loader + validation
-schemas/qdrant.yaml        example schema
+schemas/*.yaml             example schemas (qdrant, ollama)
+scripts/integration-test.sh  end-to-end checks run by CI on both forges
+PACKAGING.md               how releases are built and verified
 ```
 
 ## Non-goals

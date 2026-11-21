@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"tokenmgr/internal/keysource"
+	"github.com/davidcrumpton/tokenmgr/internal/keysource"
 )
 
 func TestIssue(t *testing.T) {
