@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/tokenmanager-logo.jpg" alt="tokenmgr logo" width="180">
+</p>
+
 # tokenmgr
 
 Self-describing signed bearer tokens for homelab infrastructure.
