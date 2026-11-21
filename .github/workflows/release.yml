@@ -52,6 +52,11 @@ jobs:
       - name: Check tag matches the source version default
         run: |
           src="$(sed -n 's/^var version = "\(.*\)"$/\1/p' cmd/tokenmgr/main.go)"
+          if [ -z "$src" ]; then
+            echo "::error::could not read the version default from cmd/tokenmgr/main.go"
+            echo "expected a line like: var version = \"v0.1.1\""
+            exit 1
+          fi
           echo "source default: $src   tag: ${{ github.ref_name }}"
           if [ "$src" != "${{ github.ref_name }}" ]; then
             echo "::error::tag ${{ github.ref_name }} does not match source version default $src"
